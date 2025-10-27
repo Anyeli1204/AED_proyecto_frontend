@@ -9,10 +9,10 @@
 
 using namespace std;
 
-bool printtable = false;
+bool printtable = true;
 
 int main(){
-    vector<pair<string, string>> data = loadCSV("productos100000.csv");
+    vector<pair<string, string>> data = loadCSV("productos1000.csv");
     LinearHash<string, string> hash(4);
     auto start1 = std::chrono::high_resolution_clock::now();
     for(auto i=0;i<data.size();i++)
@@ -31,7 +31,7 @@ int main(){
     cout << "Visited buckets after insertion: " << hash.visited_buckets() << "\n";
     string dumpvar;
     auto start2 = std::chrono::high_resolution_clock::now();
-    for (auto i=1; i<=100000; ++i) {
+    for (auto i=1; i<=1000; ++i) {
         std::ostringstream oss;
         oss << "PROD" << std::setw(6) << std::setfill('0') << i;
         std::string testkey = oss.str();
@@ -41,7 +41,7 @@ int main(){
     auto duration2 = std::chrono::duration_cast<std::chrono::microseconds>(end2 - start2);
     cout << "Visited buckets after insertion and access: " << hash.visited_buckets() << "\n";
     auto start3 = std::chrono::high_resolution_clock::now();
-    for (auto i=1; i<=100000; ++i) {
+    for (auto i=1; i<=1000; ++i) {
         std::ostringstream oss;
         oss << "PROD" << std::setw(6) << std::setfill('0') << i;
         std::string testkey = oss.str();
