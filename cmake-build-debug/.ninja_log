@@ -1,0 +1,9 @@
+# ninja log v6
+4	43259	7861400302420694	CMakeFiles/servidor_sesiones.dir/main.cpp.obj	6c937d3bf7ff98b3
+43272	129436	7861400735094484	servidor_sesiones.exe	cf2793743796d59c
+111	42105	7861418573248742	CMakeFiles/servidor_sesiones.dir/main.cpp.obj	6c937d3bf7ff98b3
+42106	114716	7861418993198180	servidor_sesiones.exe	cf2793743796d59c
+50	53304	7861460276859892	CMakeFiles/servidor_sesiones.dir/main.cpp.obj	6c937d3bf7ff98b3
+53459	141922	7861460810915406	servidor_sesiones.exe	cf2793743796d59c
+35	39713	7861463438920632	CMakeFiles/servidor_sesiones.dir/main.cpp.obj	6c937d3bf7ff98b3
+39715	132570	7861463835722281	servidor_sesiones.exe	cf2793743796d59c
