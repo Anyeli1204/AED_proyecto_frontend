@@ -1,5 +1,6 @@
 #include <stdexcept>
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
@@ -208,7 +209,7 @@ public:
 	// Muestra en consola la configuración interna de la estructura
 	// y todos los buckets con sus claves.
 	void debug_print(const char* label = "") {
-		cout << "\n========== ESTADO LinearHash " << label << " ==========\n";
+		cout << "\n========== ESTADO LinearHash " << label << " ==========\n" << flush;
 		cout << "M0=" << M0
 			 << "  i=" << i
 			 << "  p=" << p
@@ -216,7 +217,7 @@ public:
 			 << "  capacity=" << capacity
 			 << "  datacount=" << datacount
 			 << "  fillFactor=" << fillFactor()
-			 << "\n";
+			 << "\n" << flush;
 		for (int b = 0; b < bucketcount; ++b) {
 			cout << "Bucket " << b << " (size=" << bucket_sizes[b] << "): ";
 			Node* curr = array[b];
@@ -224,7 +225,6 @@ public:
 				cout << "[vacio]";
 			} else {
 				while (curr) {
-					// Imprimimos solo la key (token string)
 					cout << curr->key;
 					if (curr->next) cout << " -> ";
 					curr = curr->next;
@@ -232,7 +232,37 @@ public:
 			}
 			cout << "\n";
 		}
-		cout << "===========================================\n";
+		cout << "===========================================\n" << flush;
+	}
+
+	// Recorre todos los elementos de la tabla y aplica una función callback
+	// La función callback recibe: (TK key, TV& value) -> bool
+	// Si retorna true, el elemento se elimina; si retorna false, se mantiene
+	template<typename Func>
+	int for_each_remove_if(Func callback) {
+		int eliminados = 0;
+		std::vector<TK> tokens_a_eliminar;
+		
+		// Primera pasada: identificar tokens a eliminar
+		for (int b = 0; b < bucketcount; ++b) {
+			Node* curr = array[b];
+			while (curr != nullptr) {
+				++visited;
+				if (callback(curr->key, curr->value)) {
+					tokens_a_eliminar.push_back(curr->key);
+				}
+				curr = curr->next;
+			}
+		}
+		
+		// Segunda pasada: eliminar los tokens identificados
+		for (const TK& token : tokens_a_eliminar) {
+			if (remove(token)) {
+				++eliminados;
+			}
+		}
+		
+		return eliminados;
 	}
 
 private:

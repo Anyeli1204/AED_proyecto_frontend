@@ -8,6 +8,9 @@
 #include <string>
 #include <chrono>
 #include <random>
+#include <fstream>
+#include <thread>
+#include <mutex>
 #include "linearhash.h"
 #include "json.hpp"
 
@@ -22,6 +25,8 @@ struct Sesion {
 // Tabla global de sesiones (usa LinearHash.h)
 LinearHash<std::string, Sesion> tablaSesiones(4);
 
+std::mutex tablaSesionesMutex;
+
 // Generar token único
 std::string generar_token() {
     auto now = std::chrono::system_clock::now().time_since_epoch().count();
@@ -29,7 +34,6 @@ std::string generar_token() {
     uint64_t r = rng();
     return std::to_string(now) + "_" + std::to_string(r);
 }
-
 
 void cargar_sesiones_iniciales() {
     cout << "[BOOT] Cargando sesiones iniciales (INGESTA DE DATOS)...\n";
@@ -71,10 +75,91 @@ void cargar_sesiones_iniciales() {
     tablaSesiones.debug_print("DESPUES DE CARGA INICIAL (20 sesiones)");
 }
 
+void limpiar_sesiones_expiradas() {
+    std::lock_guard<std::mutex> lock(tablaSesionesMutex);
+    auto ahora = std::chrono::system_clock::now();
+    
+    cout << "[CLEANUP] Recorriendo tabla para buscar sesiones expiradas (>5 minutos)...\n";
+    
+    int eliminados = tablaSesiones.for_each_remove_if([&ahora](const std::string& token, Sesion& sesion) -> bool {
+        auto diff_min = std::chrono::duration_cast<std::chrono::minutes>(ahora - sesion.creada_en).count();
+        if (diff_min > 5) {
+            cout << "[CLEANUP] Token expirado: " << token << " (expirado hace " << diff_min - 5 << " minutos)\n";
+            return true;
+        }
+        return false;
+    });
+    
+    if (eliminados > 0) {
+        cout << "[CLEANUP] Se eliminaron " << eliminados << " sesiones expiradas\n";
+        tablaSesiones.debug_print("DESPUES DE LIMPIEZA AUTOMATICA");
+    } else {
+        cout << "[CLEANUP] No se encontraron sesiones expiradas\n";
+    }
+}
+
+void hilo_limpieza_periodica() {
+    const int intervalo_limpieza_segundos = 300;
+    
+    cout << "\n[CLEANUP] Hilo de limpieza automática INICIADO\n";
+    cout << "[CLEANUP] Se ejecutará cada 5 minutos\n\n";
+    
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(intervalo_limpieza_segundos));
+        cout << "[CLEANUP] Ejecutando limpieza automática...\n";
+        limpiar_sesiones_expiradas();
+    }
+}
 
 int main() {
     httplib::Server svr;
     cargar_sesiones_iniciales();
+
+    svr.set_default_headers({{"Access-Control-Allow-Origin", "*"},
+                             {"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"},
+                             {"Access-Control-Allow-Headers", "Content-Type, Authorization"},
+                             {"Access-Control-Max-Age", "3600"}});
+    
+    svr.Options(".*", [](const httplib::Request& req, httplib::Response& res) {
+        res.status = 200;
+    });
+
+    svr.Get("/", [](const httplib::Request& req, httplib::Response& res) {
+        std::ifstream file("../index.html", std::ios::binary);
+        if (file.is_open()) {
+            std::string content((std::istreambuf_iterator<char>(file)),
+                               std::istreambuf_iterator<char>());
+            res.set_content(content, "text/html");
+            res.status = 200;
+        } else {
+            res.status = 404;
+        }
+    });
+    
+    svr.Get("/styles.css", [](const httplib::Request& req, httplib::Response& res) {
+        std::ifstream file("../styles.css", std::ios::binary);
+        if (file.is_open()) {
+            std::string content((std::istreambuf_iterator<char>(file)),
+                               std::istreambuf_iterator<char>());
+            res.set_content(content, "text/css");
+            res.status = 200;
+        } else {
+            res.status = 404;
+        }
+    });
+    
+    svr.Get("/app.js", [](const httplib::Request& req, httplib::Response& res) {
+        std::ifstream file("../app.js", std::ios::binary);
+        if (file.is_open()) {
+            std::string content((std::istreambuf_iterator<char>(file)),
+                               std::istreambuf_iterator<char>());
+            res.set_content(content, "application/javascript");
+            res.status = 200;
+        } else {
+            res.status = 404;
+        }
+    });
+
     // 1. LOGIN
     // POST /login
     // Body JSON: { "correo": "...", "password": "..." }
@@ -92,7 +177,6 @@ int main() {
             };
             cout << "[LOGIN] correo=" << correo << " password=" << password << "\n";
             cout << "[LOGIN] token generado=" << token << "\n";
-            // Guardamos en el LinearHash: key (parametro functino hasheo) = token, value = Sesion
             tablaSesiones.insert(token, sesion);
             tablaSesiones.debug_print("DESPUES DE /login (insert)");
             json resp;
@@ -129,7 +213,6 @@ int main() {
             cout << "[SERVICIO][ERROR] token vacio\n";
             return;
         }
-        // valida token sea existente
         Sesion sesion;
         if (!tablaSesiones.try_get(token, sesion)) {
             json err;
@@ -137,18 +220,15 @@ int main() {
             res.set_content(err.dump(), "application/json");
             res.status = 401;
             cout << "[SERVICIO][ERROR] token no encontrado en tabla\n";
-            // Imprimir estado actual de la tabla (para ver que realmente no está)
             tablaSesiones.debug_print("SERVICIO - token no encontrado");
             return;
         }
-        // valida token siga vigente
         auto ahora = std::chrono::system_clock::now();
         auto diff_min =
             std::chrono::duration_cast<std::chrono::minutes>(ahora - sesion.creada_en)
                 .count();
         cout << "[SERVICIO] token encontrado. Minutos desde creación=" << diff_min << "\n";
-        if (diff_min > 60) { // más de 1 hora
-            // delete token si ya no está vigente
+        if (diff_min > 5) {
             cout << "[SERVICIO] token EXPIRADO, se eliminara de la tabla\n";
             tablaSesiones.remove(token);
             tablaSesiones.debug_print("DESPUES DE eliminar token EXPIRADO en /servicio");
@@ -158,8 +238,6 @@ int main() {
             res.status = 401;
             return;
         }
-
-        // Token válido y no expirado
         json ok;
         ok["mensaje"] = "Acceso permitido";
         ok["correo"]  = sesion.correo;
@@ -204,7 +282,6 @@ int main() {
     // POST /admin/clear
     // Sin body. Borra TODAS las sesiones.
     svr.Post("/admin/clear", [](const httplib::Request& req, httplib::Response& res) {
-        // no usamos BODY
         (void)req; cout << "[ADMIN/CLEAR] se eliminaran TODAS las sesiones\n";
         tablaSesiones.clear();
         tablaSesiones.debug_print("DESPUES DE /admin/clear (clear)");
@@ -216,6 +293,10 @@ int main() {
 
     std::cout << "Servidor escuchando en http://localhost:8080\n";
     tablaSesiones.debug_print("ESTADO INICIAL (tabla ingestada)");
+    
+    std::thread cleanup_thread(hilo_limpieza_periodica);
+    cleanup_thread.detach();
+    
     svr.listen("0.0.0.0", 8080);
     return 0;
 }
