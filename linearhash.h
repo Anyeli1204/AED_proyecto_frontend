@@ -209,7 +209,7 @@ public:
 	// Muestra en consola la configuración interna de la estructura
 	// y todos los buckets con sus claves.
 	void debug_print(const char* label = "") {
-		cout << "\n========== ESTADO LinearHash " << label << " ==========\n" << flush;
+		cout << "\n========== ESTADO LinearHash " << label << " ==========\n";
 		cout << "M0=" << M0
 			 << "  i=" << i
 			 << "  p=" << p
@@ -217,7 +217,7 @@ public:
 			 << "  capacity=" << capacity
 			 << "  datacount=" << datacount
 			 << "  fillFactor=" << fillFactor()
-			 << "\n" << flush;
+			 << "\n";
 		for (int b = 0; b < bucketcount; ++b) {
 			cout << "Bucket " << b << " (size=" << bucket_sizes[b] << "): ";
 			Node* curr = array[b];
@@ -232,7 +232,7 @@ public:
 			}
 			cout << "\n";
 		}
-		cout << "===========================================\n" << flush;
+		cout << "===========================================\n";
 	}
 
 	// Recorre todos los elementos de la tabla y aplica una función callback

@@ -82,43 +82,40 @@ async function switchTab(tabName) {
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
 }
 
-// Función para validar token antes de acceder a admin
 async function validateTokenForAdmin() {
-    // Verificar si hay token
-    if (!currentToken) {
+    const token = currentToken || localStorage.getItem('sessionToken');
+    
+    if (!token) {
         showAlert('❌ No hay sesión activa. Por favor, inicia sesión primero.', 'error');
         return false;
     }
     
     try {
-        // Mostrar mensaje de verificación en el panel de admin
         const responseDiv = document.getElementById('adminResponse');
-        responseDiv.innerHTML = createSimpleCard('⏳', 'Verificando', 'Verificando token activo...');
+        responseDiv.innerHTML = createSimpleCard('⏳', 'Verificando', 'Verificando token activo con el servidor...');
         
-        // Cambiar a la pestaña admin temporalmente para mostrar el mensaje
         switchTabWithoutValidation('admin');
         
-        // Validar token usando el endpoint /servicio
-        const response = await fetch(`${API_BASE_URL}/servicio?token=${encodeURIComponent(currentToken)}`, {
+        const response = await fetch(`${API_BASE_URL}/servicio?token=${encodeURIComponent(token)}`, {
             method: 'GET',
         });
         
         const data = await response.json();
         
         if (response.ok && data.mensaje === 'Acceso permitido') {
-            // Token válido, permitir acceso - mostrar en tarjeta simple
+            currentToken = token;
+            if (localStorage.getItem('sessionToken') !== token) {
+                localStorage.setItem('sessionToken', token);
+            }
             responseDiv.innerHTML = createSimpleCard('✅', 'Estado', 'Token válido. Puedes usar las funciones de administración.');
             return true;
         } else {
-            // Token inválido o expirado
             showAdminAccessError(`Token no válido o expirado: ${data.mensaje || 'Sesión no autorizada'}`);
-            
             clearLocalSession();
-            
             return false;
         }
     } catch (error) {
-        showAdminAccessError(`❌ Error al verificar token: ${error.message}`);
+        showAdminAccessError(`❌ Error al verificar token con el servidor: ${error.message}`);
         return false;
     }
 }
